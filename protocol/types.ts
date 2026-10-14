@@ -1,0 +1,7 @@
+export type Bucket=0|1|2|3|255;
+export type RoundStatus='prepared'|'accepting'|'observing'|'awaiting-settlement'|'revealing'|'claiming'|'closed';
+export interface ProtocolConfig{networkIdentity:string;programId:string|null;mint:string|null;tokenProgram:string;administrator:string|null;agentAuthority:string|null;settlementAuthority:string|null;settlementMode:'disabled'|'local-fixture'|'pyth';productionSettlementEnabled:boolean;oracleOwner:string|null;oracleFeedIds:{solUsd:string;btcUsd:string}|null;oracleMaxGapSeconds:string|null;oracleMaxConfidenceBps:number|null;schemaVersion:1}
+export interface Question{asset:'SOL/USD'|'BTC/USD';resultBucket:Bucket|null;totalCorrectWeight:string}
+export interface OraclePriceEvidence{price:string;confidence:string;exponent:number;publishTime:string;prevPublishTime:string}
+export interface Round{id:string;status:RoundStatus;entryOpensAt:string;entryClosesAt:string;observationEndsAt:string;settlementDeadline:string;revealEndsAt:string;claimEndsAt:string;forecastCommitment:string;rewardPoolLamports:string;rewardPaidLamports:string;totalDepositedBaseUnits:string;questions:[Question,Question];oracleEvidenceHash:string|null;acceptedOraclePrices:[OraclePriceEvidence|null,OraclePriceEvidence|null,OraclePriceEvidence|null,OraclePriceEvidence|null]|null}
+export interface Capsule{roundId:string;wallet:string;commitment:string;ciphertextHash:string;ciphertextLength:number;depositedBaseUnits:string;revealed:boolean;answers:[number,number]|null;principalWithdrawn:boolean;rewardClaimed:boolean;rewardPaidLamports:string}
