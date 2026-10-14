@@ -1,0 +1,13 @@
+{
+  "name": "@ant/wallet-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./wallet-client.mjs",
+  "dependencies": {
+    "@ant/protocol": "0.1.0",
+    "@solana/web3.js": "1.99.0",
+    "bs58": "6.0.0",
+    "tlock-js": "0.9.0"
+  }
+}
