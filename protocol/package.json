@@ -1,0 +1,14 @@
+{
+  "name": "@ant/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./browser": "./browser.mjs",
+    "./solana": "./solana.mjs"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "1.99.0"
+  }
+}
