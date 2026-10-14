@@ -1,0 +1,16 @@
+{
+  "name": "ant-public-source",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "workspaces": [
+    "protocol",
+    "wallet-client"
+  ],
+  "scripts": {
+    "test:protocol": "node --test protocol/protocol.test.mjs"
+  }
+}
