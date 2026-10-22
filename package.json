@@ -11,6 +11,6 @@
     "wallet-client"
   ],
   "scripts": {
-    "test:protocol": "node --test protocol/protocol.test.mjs"
+    "test:protocol": "node --test protocol/*.test.mjs"
   }
 }

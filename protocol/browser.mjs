@@ -1,5 +1,5 @@
 // Browser-safe wallet codecs. Hashing is async because WebCrypto is async.
-export const SCHEMA_VERSION=1,MAX_CIPHERTEXT=512,CONFIG_LEN=272,ROUND_LEN=374,CAPSULE_LEN=642,TOKEN_PROGRAM_ID='TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+export const SCHEMA_VERSION=1,MAX_CIPHERTEXT=512,CONFIG_LEN=401,ROUND_LEN=439,CAPSULE_LEN=642,TOKEN_PROGRAM_ID='TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
 const enc=new TextEncoder(),DOMAIN=enc.encode('ant-capsule-v1');
 const bytes=value=>value instanceof Uint8Array?value:new Uint8Array(value?.toBytes?.()??value);
 const fixed32=(value,name)=>{const b=bytes(value);if(b.length!==32)throw Error(`${name} must be 32 bytes`);return b;};
@@ -11,3 +11,7 @@ export async function capsuleCommitment({programId,networkIdentity,mint,roundId,
 export async function encodeEnter({depositBaseUnits,commitment,ciphertext}){const c=bytes(ciphertext);if(!c.length||c.length>MAX_CIPHERTEXT)throw Error(`ciphertext must be 1..${MAX_CIPHERTEXT} bytes`);return concat(Uint8Array.of(3),le(depositBaseUnits,8),fixed32(commitment,'commitment'),await sha256(c),le(c.length,2),c);}
 export function encodeReveal({answers,salt,schemaVersion=SCHEMA_VERSION}){if(answers?.length!==2||answers.some(v=>v<0||v>3))throw Error('answers must contain two buckets 0..3');return concat(Uint8Array.of(6),le(schemaVersion,2),Uint8Array.from(answers),fixed32(salt,'salt'));}
 export const encodeWithdraw=()=>Uint8Array.of(7);export const encodeClaim=()=>Uint8Array.of(8);
+
+export {TOKEN_2022_PROGRAM_ID,validateMintBytes,validateTokenAccountBytes,supportedTokenProgram} from "./token-validation.mjs";
+
+export const CHECKPOINT_LEN=225,PUSH_WINDOW_SECONDS=120;

@@ -1,3 +1,4 @@
+import {supportedTokenProgram,validateMintBytes,validateTokenAccountBytes} from '@ant/protocol/token-validation';
 import {
   PublicKey,
   SendTransactionError,
@@ -168,7 +169,7 @@ export async function connectProvider({
   publicKey(config.programId, 'programId');
   publicKey(config.mint, 'mint');
   publicKey(config.tokenProgram, 'tokenProgram');
-  if (config.tokenProgram !== TOKEN_PROGRAM_ID) fail('configuration-invalid', 'Only the pinned legacy SPL Token program is supported.');
+  if (!supportedTokenProgram(config.tokenProgram)) fail('configuration-invalid', 'Unsupported token program.');
   const drand = createQuicknetClient(config.drand);
   const connection = new ConnectionClass(config.publicRpcUrl, commitment);
   let genesisHash;
@@ -198,7 +199,8 @@ function decodeProgramConfig(info, programId) {
   if (!info || !info.owner.equals(programId)) fail('account-invalid', 'The protocol config account is missing or has the wrong owner.');
   const data = bytes(info.data);
   if (data.length !== CONFIG_LEN || data[0] !== 1 || data[1] !== 1) fail('account-invalid', 'The protocol config account has an unsupported layout.');
-  return {networkIdentity: data.slice(5, 37), mint: new PublicKey(data.slice(37, 69)), settlementMode: data[165]};
+  if (data[272] !== 0) fail('protocol-paused', 'Ant is paused for custody recovery. Balances and claims remain recorded.');
+  return {tokenProgram:new PublicKey(data.slice(305,337)),pausedSeconds: u64At(data, 281), networkIdentity: data.slice(5, 37), mint: new PublicKey(data.slice(37, 69)), settlementMode: data[165]};
 }
 
 function decodeRoundAccount(info, programId, expectedRoundId) {
@@ -206,6 +208,7 @@ function decodeRoundAccount(info, programId, expectedRoundId) {
   const data = bytes(info.data);
   if (data.length !== ROUND_LEN || data[0] !== 2 || u64At(data, 2) !== BigInt(expectedRoundId)) fail('account-invalid', 'The round account has an unsupported identity or layout.');
   return {
+    pauseAppliedSeconds: u64At(data, 382),
     config: new PublicKey(data.slice(10, 42)),
     depositVault: new PublicKey(data.slice(42, 74)),
     entryOpensAt: i64At(data, 106),
@@ -219,17 +222,10 @@ function decodeRoundAccount(info, programId, expectedRoundId) {
 function decodeTokenAccount(info, tokenProgram) {
   if (!info || !info.owner.equals(tokenProgram)) fail('account-invalid', 'The token account is missing or has the wrong token program.');
   const data = bytes(info.data);
-  if (data.length !== 165 || data[108] !== 1 || u32At(data, 72) !== 0 || u32At(data, 129) !== 0) fail('account-invalid', 'The token account must be initialized without delegate or close authority.');
-  return {mint: new PublicKey(data.slice(0, 32)), owner: new PublicKey(data.slice(32, 64)), amount: u64At(data, 64)};
+  try {const state=validateTokenAccountBytes(data,tokenProgram.toBase58());return {...state,mint:new PublicKey(state.mint),owner:new PublicKey(state.owner)};}catch(error){fail('account-invalid',error.message);}
 }
 
-function validateMint(info, tokenProgram, decimals) {
-  if (!info || !info.owner.equals(tokenProgram)) fail('account-invalid', 'The mint is missing or owned by the wrong token program.');
-  const data = bytes(info.data);
-  if (data.length !== 82 || data[45] !== 1 || data[44] !== decimals || u32At(data, 0) !== 0 || u32At(data, 46) !== 0) {
-    fail('account-invalid', 'The mint layout or decimals do not match configuration.');
-  }
-}
+function validateMint(info,tokenProgram,decimals,mint){if(!info||!info.owner.equals(tokenProgram))fail('account-invalid','Mint program mismatch');try{validateMintBytes(info.data,tokenProgram.toBase58(),mint.toBytes(),decimals);}catch(error){fail('account-invalid',error.message);}}
 
 async function readEntryAccounts(client, roundId, depositBaseUnits) {
   const programId = publicKey(client.config.programId, 'programId');
@@ -247,13 +243,16 @@ async function readEntryAccounts(client, roundId, depositBaseUnits) {
   catch (error) { fail('rpc-error', 'Protocol accounts could not be read.', {cause: error?.message}); }
   const config = decodeProgramConfig(infos[0], programId);
   const round = decodeRoundAccount(infos[1], programId, roundId);
+  const pauseDelta = config.pausedSeconds - round.pauseAppliedSeconds;
+  if (pauseDelta < 0n) fail('account-invalid', 'Invalid recovery clock.');
+  round.revealEndsAt += pauseDelta; round.claimEndsAt += pauseDelta;
   if (infos[2]) fail('account-invalid', 'A capsule already exists for this wallet and round.');
   const sourceState = decodeTokenAccount(infos[3], tokenProgram);
   const vaultState = decodeTokenAccount(infos[4], tokenProgram);
-  validateMint(infos[5], tokenProgram, client.config.tokenDecimals);
+  validateMint(infos[5], tokenProgram, client.config.tokenDecimals,mint);
   const expectedIdentity = fromHex(client.config.networkIdentity, 'networkIdentity');
-  if (!equalBytes(config.networkIdentity, expectedIdentity) || !config.mint.equals(mint)) fail('wrong-network', 'On-chain protocol configuration does not match the service network and mint.');
-  if (client.network === 'mainnet-beta' && (client.config.settlementMode !== 'pyth' || config.settlementMode !== 2)) {
+  if (!equalBytes(config.networkIdentity, expectedIdentity) || !config.mint.equals(mint)||!config.tokenProgram.equals(tokenProgram)) fail('wrong-network', 'On-chain protocol configuration does not match the service network and mint.');
+  if (client.network === 'mainnet-beta' && (!['pyth','pyth-push'].includes(client.config.settlementMode) || config.settlementMode !== (client.config.settlementMode==='pyth-push'?3:2))) {
     fail('settlement-disabled', 'On-chain mainnet settlement mode does not match the enabled production Pyth mode.', {serviceMode: client.config.settlementMode, onchainMode: config.settlementMode});
   }
   if (!round.config.equals(configAddress) || !round.depositVault.equals(vault)) fail('account-invalid', 'Round vault configuration does not match canonical addresses.');
@@ -526,7 +525,7 @@ export async function withdrawPrincipal(client, {roundId}) {
   const instruction = new TransactionInstruction({programId: accounts.programId, keys: [
     {pubkey: accounts.wallet, isSigner: true, isWritable: false},
     {pubkey: accounts.configAddress, isSigner: false, isWritable: false},
-    {pubkey: accounts.roundAddress, isSigner: false, isWritable: false},
+    {pubkey: accounts.roundAddress, isSigner: false, isWritable: true},
     {pubkey: accounts.capsuleAddress, isSigner: false, isWritable: true},
     {pubkey: vault, isSigner: false, isWritable: true},
     {pubkey: destination, isSigner: false, isWritable: true},
@@ -545,6 +544,7 @@ export async function claimReward(client, {roundId}) {
     {pubkey: accounts.wallet, isSigner: true, isWritable: true},
     {pubkey: accounts.roundAddress, isSigner: false, isWritable: true},
     {pubkey: accounts.capsuleAddress, isSigner: false, isWritable: true},
+    {pubkey: accounts.configAddress, isSigner: false, isWritable: false},
   ], data: encodeClaim()});
   const unsigned = await unsignedTransaction(client, instruction);
   return submitWalletTransaction(client, unsigned.transaction, unsigned.lifetime);

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./index.mjs",
     "./browser": "./browser.mjs",
-    "./solana": "./solana.mjs"
+    "./solana": "./solana.mjs",
+    "./token-validation": "./token-validation.mjs"
   },
   "peerDependencies": {
     "@solana/web3.js": "1.99.0"
