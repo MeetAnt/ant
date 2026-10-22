@@ -8,7 +8,7 @@ This package contains the reviewed public boundary for Ant's Solana prediction-r
 
 The repository intentionally omits the private service, database schema and operations, provider configuration, signer material, local validator data, deployment records, and project automation. It contains no configured production program ID, ANT mint, administrator, agent, settlement authority, Pyth receiver policy, or RPC endpoint. Those identities are deployment-specific inputs that must be independently verified before a client is enabled.
 
-Website: [meetant.fun](https://www.meetant.fun). Source: [MeetAnt/ant](https://github.com/MeetAnt/ant).
+Website: [meetant.fun](https://www.meetant.fun). Source: [MeetAnt/ant](https://github.com/MeetAnt/ant). X: [@MeetAntDotFun](https://x.com/MeetAntDotFun).
 
 ## Round mechanics
 
